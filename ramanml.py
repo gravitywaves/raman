@@ -106,93 +106,6 @@ def analyze_feature_importance(X_train, y_train, X_val, y_val, wavenumbers):
     
     return top_features
 
-# Enhanced CNN architecture with residual connections
-class EnhancedCNN1D(nn.Module):
-    def __init__(self, input_size):
-        super(EnhancedCNN1D, self).__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv1d(1, 32, kernel_size=7, stride=2, padding=3),
-            nn.BatchNorm1d(32),
-            nn.ReLU(),
-            nn.MaxPool1d(2)
-        )
-        self.conv2 = nn.Sequential(
-            nn.Conv1d(32, 64, kernel_size=5, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(),
-            nn.MaxPool1d(2)
-        )
-        self.conv3 = nn.Sequential(
-            nn.Conv1d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.AdaptiveMaxPool1d(8)
-        )
-        
-        # Residual connections
-        self.skip1 = nn.Conv1d(1, 32, 1)
-        self.skip2 = nn.Conv1d(32, 64, 1)
-        self.skip3 = nn.Conv1d(64, 128, 1)
-        
-        self.fc = nn.Sequential(
-            nn.Linear(128 * 8, 256),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(256, 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, 1)
-        )
-    
-    def forward(self, x):
-        # Residual connections
-        skip1 = self.skip1(x)
-        x = self.conv1(x)
-        x = x + skip1[:, :, :x.shape[2]]
-        
-        skip2 = self.skip2(x)
-        x = self.conv2(x)
-        x = x + skip2[:, :, :x.shape[2]]
-        
-        skip3 = self.skip3(x)
-        x = self.conv3(x)
-        x = x + skip3[:, :, :x.shape[2]]
-        
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
-
-# Enhanced LSTM with attention mechanism
-class AttentionLSTM1D(nn.Module):
-    def __init__(self, input_size):
-        super(AttentionLSTM1D, self).__init__()
-        self.lstm = nn.LSTM(input_size=1, hidden_size=128, num_layers=2,
-                           batch_first=True, bidirectional=True)
-        self.attention = nn.Sequential(
-            nn.Linear(256, 64),
-            nn.Tanh(),
-            nn.Linear(64, 1)
-        )
-        self.fc = nn.Sequential(
-            nn.Linear(256, 64),
-            nn.ReLU(),
-            nn.Dropout(0.5),
-            nn.Linear(64, 1)
-        )
-    
-    def attention_net(self, lstm_output):
-        attention_weights = self.attention(lstm_output)
-        attention_weights = torch.softmax(attention_weights, dim=1)
-        context = torch.sum(attention_weights * lstm_output, dim=1)
-        return context
-    
-    def forward(self, x):
-        x = x.permute(0, 2, 1)
-        lstm_output, _ = self.lstm(x)
-        attention_output = self.attention_net(lstm_output)
-        output = self.fc(attention_output)
-        return output
-
 def evaluate_model_enhanced(y_true, y_pred, y_prob=None):
     """Enhanced evaluation metrics"""
     basic_metrics = {
@@ -357,6 +270,37 @@ class LSTM1D(nn.Module):
         x = x[:, -1, :]
         x = self.fc(x)
         return x
+
+# Enhanced LSTM with attention mechanism
+class AttentionLSTM1D(nn.Module):
+    def __init__(self, input_size):
+        super(AttentionLSTM1D, self).__init__()
+        self.lstm = nn.LSTM(input_size=1, hidden_size=128, num_layers=2,
+                           batch_first=True, bidirectional=True)
+        self.attention = nn.Sequential(
+            nn.Linear(256, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1)
+        )
+        self.fc = nn.Sequential(
+            nn.Linear(256, 64),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(64, 1)
+        )
+
+    def attention_net(self, lstm_output):
+        attention_weights = self.attention(lstm_output)
+        attention_weights = torch.softmax(attention_weights, dim=1)
+        context = torch.sum(attention_weights * lstm_output, dim=1)
+        return context
+
+    def forward(self, x):
+        x = x.permute(0, 2, 1)
+        lstm_output, _ = self.lstm(x)
+        attention_output = self.attention_net(lstm_output)
+        output = self.fc(attention_output)
+        return output
 
 def evaluate_model(y_true, y_pred):
     """Calculate various metrics for model evaluation"""
